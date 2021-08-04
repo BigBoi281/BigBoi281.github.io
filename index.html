@@ -122,7 +122,7 @@ function updateGameArea() {
 
 function everyinterval(n) {
     if ((myGameArea.frameNo / n) % 1 == 0) {return true;}
-    return false;
+    return true;
 }
 
 function accelerate(n) {
@@ -136,6 +136,5 @@ function accelerate(n) {
 </body>
 </html>
 <input type="button" class="reset-button" value="Reset Count">
-const resetBtn = document.querySelector('.reset-button')
-
 resetBtn.addEventListener('click', reset )
+
