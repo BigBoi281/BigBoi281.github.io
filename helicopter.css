@@ -1,9 +1,3 @@
-<!DOCTYPE>
-<html>
-<head>
-<title> hi </title>
-</head>
-<body>
 import javax.swing.*;
 import java.util.*;
 import java.awt.*;
@@ -534,8 +528,6 @@ class MovingImage
     }
 }
 
-</body>
-</html>
 /*
 class MP3 {
     private String filename;
