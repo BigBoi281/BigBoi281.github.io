@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<meta charset="utf-8">
+<head>
+<style>
+
+body {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  width: 960px;
+  height: 500px;
+  position: relative;
+}
+
+</style>
+</head>
+<body><div id="test"></div></body>
+<script src="//cdnjs.cloudflare.com/ajax/libs/phaser/2.1.0/phaser.min.js"></script>
+<script>
+
+// Phaser current version test environment
+// Breakout
+
+var game = new Phaser.Game(960, 500, Phaser.AUTO, 'test');
+
+var BasicGame = function (game) {};
+
+BasicGame.Boot = function (game) {};
+
+var paddle, ball, bricks;
+
+BasicGame.Boot.prototype = {
+    preload: function () {
+        game.time.advancedTiming = true;
+    },
+    create: function () {
+        var bg = this.game.add.bitmapData(128, 128);
+        bg.rect(0, 0, 128, 128, '#000');
+        this.game.add.tileSprite(0, 0, this.game.width, this.game.height, bg).alpha = 0.1;
+        this.glow = this.game.add.renderTexture(this.game.width, this.game.height);
+        var glowSprite = this.game.add.sprite(0, 0, this.glow);
+        glowSprite.anchor.set(0.5);
+        glowSprite.x = this.game.world.centerX;
+        glowSprite.y = this.game.world.centerY;
+        glowSprite.alpha = 0.2;
+
+        this.game.physics.arcade.bounds.height += 40;
+
+        var paddleBmp = this.game.add.bitmapData(64, 16);
+        paddleBmp.rect(0, 0, 64, 16, "#fff");
+
+        paddle = this.game.add.sprite(
+        this.game.world.centerX,
+        this.game.world.height - 24,
+        paddleBmp);
+
+        paddle.anchor.setTo(0.5, 0);
+
+        this.game.physics.arcade.enable(paddle);
+        paddle.body.moves = false;
+        paddle.body.immovable = true;
+
+        var ballBmp = this.game.add.bitmapData(16, 16);
+        ballBmp.rect(0, 0, 16, 16, "#fff");
+
+        ball = this.game.add.sprite(
+        this.game.world.centerX,
+        this.game.world.centerY + 16,
+        ballBmp);
+
+        this.game.physics.arcade.enable(ball);
+
+        ball.body.collideWorldBounds = true;
+        ball.anchor.set(0.5);
+        ball.body.bounce.set(1);
+        ball.body.velocity.set(150, 150);
+        ball.body.maxVelocity.set(400);
+        ball.body.angularVelocity = ball.body.velocity.x;
+
+        var brickBmp = this.game.add.bitmapData(32, 16);
+        brickBmp.rect(1, 1, 30, 14, "#fff");
+
+        bricks = game.add.group();
+        bricks.enableBody = true;
+        var brick;
+        for (var c = 48; c < game.world.width - 16; c += 32) {
+            for (var r = 64; r < game.world.centerY; r += 16) {
+                brick = bricks.create((c - this.game.world.width * 0.25) * 2, r - this.game.world.centerY, brickBmp);
+                brick.body.immovable = true;
+                brick.body.moves = false;
+                brick.anchor.set(0.5);
+                brick.originalPosition = new Phaser.Point(c, r);
+                this.game.add.tween(brick).to({
+                    x: c,
+                    y: r
+                }, 800, Phaser.Easing.Quadratic.Out, true, this.game.rnd.integerInRange(0, 600));
+            }
+        }
+
+        this.cursors = this.game.input.keyboard.createCursorKeys();
+    },
+    update: function () {
+        this.glow.renderXY(this.world, 0, 0);
+        var self = this;
+
+        paddle.scale.x = 1 + (1 * (Math.abs(paddle.deltaX) * 0.02));
+
+        if (ball.y > this.game.world.height) {
+            ball.kill();
+            ball.reset(paddle.x, paddle.y);
+            ball.body.velocity.set(200 * this.game.rnd.normal(), -200);
+            ball.body.angularVelocity = ball.body.velocity.x;
+        }
+
+        this.game.physics.arcade.collide(paddle, ball, function () {
+            ball.body.velocity.x += (ball.body.x - paddle.x) * 8;
+            ball.body.angularVelocity = (ball.body.x - paddle.x) * 16;
+
+            // Speed ball up
+            ball.body.velocity.multiply(1.03, 1.03);
+        });
+
+        this.game.physics.arcade.collide(ball, bricks, function (ball, brick) {
+            brick.body.enable = false;
+            self.game.add.tween(brick.scale).to({
+                x: 0,
+                y: 0
+            }, 200, Phaser.Easing.Quadratic.In, true).onComplete.add(function () {
+                brick.kill();
+            }, this);
+            self.brickShake(brick);
+        });
+
+        if (this.game.input.activePointer.withinGame) {
+            paddle.x = this.game.input.activePointer.x;
+        } else {
+            if (this.cursors.left.isDown) {
+                paddle.x -= 7;
+            } else if (this.cursors.right.isDown) {
+                paddle.x += 7;
+            }
+        }
+        if (paddle.x - (paddle.width * 0.5) < 0) {
+            paddle.x = paddle.width * 0.5;
+        } else if (paddle.x + (paddle.width * 0.5) > this.game.world.width) {
+            paddle.x = this.game.world.width - (paddle.width * 0.5);
+        }
+    },
+    render: function () {
+        game.debug.text(game.time.fps || '--', 2, 14, "#00ff00");
+    },
+    brickShake: function (deadBrick) {
+        var self = this;
+        bricks.forEachAlive(function (brick) {
+            if (brick === deadBrick) {
+                return;
+            }
+            var distance = Phaser.Math.distance(deadBrick.x, deadBrick.y, brick.x, brick.y);
+            var magnitude = Math.pow(distance, -1.5) * 1500;
+            self.game.time.events.add(distance, function () {
+                brick.x = brick.originalPosition.x + (magnitude * self.game.rnd.normal());
+                brick.y = brick.originalPosition.y + (magnitude * self.game.rnd.normal());
+                self.game.add.tween(brick).to({
+                    x: brick.originalPosition.x,
+                    y: brick.originalPosition.y
+                }, 500, Phaser.Easing.Elastic.Out, true);
+            }, this);
+        });
+    }
+};
+
+game.state.add('Boot', BasicGame.Boot);
+game.state.start('Boot');
+
+</script>
+</html>
