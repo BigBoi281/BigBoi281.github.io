@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang='en'>
+  <head>
+    <script>
+      var Keen=Keen||{configure:function(e){this._cf=e},addEvent:function(e,t,n,i){this._eq=this._eq||[],this._eq.push([e,t,n,i])},setGlobalProperties:function(e){this._gp=e},onChartsReady:function(e){this._ocrq=this._ocrq||[],this._ocrq.push(e)}};(function(){var e=document.createElement("script");e.type="text/javascript",e.async=!0,e.src=("https:"==document.location.protocol?"https://":"http://")+"dc8na2hxrj29i.cloudfront.net/code/keen-2.1.0-min.js";var t=document.getElementsByTagName("script")[0];t.parentNode.insertBefore(e,t)})();
+
+      // Configure the Keen Client
+      Keen.configure({
+        projectId: "<your project ID>",
+        readKey: "<your read key>"
+      });
+
+      Keen.onChartsReady(function(){   // Run Keen IO Queries and Draw Charts
+
+        // New Users Query
+        var newUsers = new Keen.Series("create_user", {
+          analysisType: "count",
+          timeframe: "last_30_days",
+          interval: "daily"
+        }); 
+       
+        var newUsersLineChart = new Keen.LineChart(newUsers, {
+          height: 300,
+          width: 500,
+          lineWidth: 3,
+          title: "New Users",          
+          showLegend: false,
+          xAxisLabelAngle: "45%"
+        });
+
+        // Draw a line chart of that data
+        newUsersLineChart.draw(document.getElementById("new-users"));
+
+        // DAU Query
+        var DAU = new Keen.Series("level_start", {
+          analysisType: "count_unique",
+          targetProperty: "player_id",
+          timeframe: "last_30_days",
+          interval: "daily"
+        
+        var DAULineChart = new Keen.LineChart(DAU, {
+          height: 300,
+          width: 500,
+          lineWidth: 3,
+          title: "Daily Active Users",          
+          showLegend: false,
+          xAxisLabelAngle: "45%"
+        });
+
+        // Draw a line chart of that data  
+        DAULineChart.draw(document.getElementById("dau"));          
+          
+        // Revenue Query
+        var revenue = new Keen.Series("purchases", {
+          analysisType: "sum",
+          timeframe: "last_10_days",
+          interval: "daily",
+          targetProperty: "amount_USD_cents "
+        });
+        
+        var revenueLineChart = new Keen.LineChart(revenue, {
+          height: 300,
+          width: 500,
+          lineWidth: 3,
+          title: "Daily Active Users",          
+          showLegend: false,
+          xAxisLabelAngle: "45%"
+        });
+        
+        // Draw a line chart of that data
+        revenueLineChart.draw(document.getElementById("revenue"));
+        
+        divideTwoLineSeriesChart(revenue, DAU, "daily", "arpdau", "ARPDAU (USD)")
+        
+      });
+      
+      function divideTwoLineSeriesChart(firstSeries, secondSeries, interval, div, title) {
+
+        var solutionArray = [] // variable to store results of the divided queries
+        var result1 = null // Create variables for holding query results
+        var result2 = null
+
+        firstSeries.getResponse(function(response) { // Get the values for the first query
+          result1 = response.result
+          divideResults()
+        });
+
+        secondSeries.getResponse(function(response) { // Get the values for the second Series query
+          result2 = response.result
+          divideResults()
+        });
+
+        function divideResults() {
+
+          // Results should look like:
+          //     [{
+          //       "value": 266,
+          //       "timeframe": {
+          //         "start": "2014-01-20T08:00:00.000Z",
+          //         "end": "2014-01-21T08:00:00.000Z"
+          //       }
+          //     },
+          //     {
+          //       "value": 838,
+          //       "timeframe": {
+          //         "start": "2014-01-21T08:00:00.000Z",
+          //         "end": "2014-01-22T08:00:00.000Z"
+          //       }
+          //     }]
+      
+          if ((result1 != null) && (result2 != null)) {
+            i = 0
+            while (i < result1.length) {
+              solutionArray[i] = {
+                timeframe: result1[i]["timeframe"],
+                value: result1[i]["value"] / result2[i]["value"]
+              }
+              i++;
+            }
+            drawMyLineChart(solutionArray, interval, div, title)
+          }
+          else {
+            // do nothing
+          }
+        }
+      }
+
+      function drawMyLineChart(data, interval, div, title) {
+        // The final formatting required so that the result can be processed by the Keen.MultiLineChart draw method.
+        var formattedResult = {
+          result: data
+        }
+
+        // Create a Series object so that it can be referenced by the draw method.
+        // We are passing in our own result object and not really querying the collection specified here.
+        // The "placeholder" is used instead of a collection name, since this is not used.
+        var placeholderSeries = new Keen.Series("placeholder", {
+          interval: interval
+        })
+
+        var myLineChart = new Keen.LineChart(placeholderSeries, {
+          height: 300,
+          width: 500,
+          lineWidth: 3,
+          title: title,          
+          showLegend: false,
+          xAxisLabelAngle: "45%"
+        });
+        myLineChart.draw(document.getElementById(div), formattedResult);
+      }
+    </script>
+  </head>
+  <body>
+  <h1>My Dashboard</h1> 
+  <div id="new-users"></div>  
+  <div id="revenue"></div>
+  <div id="dau"></div>
+  <div id="arpdau"></div>
+  </body>
+</html>
