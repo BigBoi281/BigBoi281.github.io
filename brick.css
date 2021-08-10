@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <title>Brick Breaker</title>
+    <link rel="stylesheet" href="./index.css">
+
+    <h1 id="BeginStatement">Press Spacebar To Begin!</h1>
+
+</head>
+<body>
+    <div id="container">
+    <canvas id="GameCanvas" width = 500 height = 300></canvas>
+    
+        <h2 id="ScoreBoard">
+        </h2>
+
+    </div> 
+</body>
+
+
+<footer>
+    <script src = "./indexFunctions.js"></script>
+</footer>
+</html>
+index.css
+#GameCanvas{
+    background-color:black;
+    display:block;
+
+    position:absolute;
+    margin-left: 20vmax;
+    margin-right: auto;
+    margin-top:10vmin;
+}
+
+body{
+    background-color: grey;
+}
+
+h2{
+
+    height:150px;
+    width:165px;
+    background-color: ghostwhite;
+
+    border:2px;
+    border-style: ridge;
+    border-color: rgb(100, 100, 100);
+
+    color:black;
+    font-size: 20px;
+
+    position: absolute;
+    top:10vmin;
+    left:70vmax;
+
+    padding: 10px;
+
+}
+
+h1{
+    position:fixed;
+    text-align: center;
+    z-index:1;
+
+    top: 60%;
+    margin-left:25%;
+    margin-right:10%;
+    
+    color: limegreen;
+}
+indexFunctions.js
+var canvas = document.getElementById("GameCanvas");
+var ctx = canvas.getContext("2d");
+
+var brickcount=14*5;
+var score=0;
+var level =1;
+var playing = false
+
+function setUp(){
+    ball= new Ball();
+    paddle= new Paddle();
+    var bricks=makeBricks(14,4);
+    console.log("Running...")
+}
+
+function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height) //Clearing past images
+    ball.update()
+    paddle.show()
+    ball.show()
+    drawBricks(bricks)
+
+    document.getElementById("ScoreBoard").innerHTML="Level "+level +"<br><br>Score: "+ score + "<br><br>Bricks left: " + (brickcount);
+
+    if (brickcount==0){
+        newGame();
+    }
+
+}
+
+function Ball(){
+    this.y=canvas.height*.5; //Starting point
+    this.x=canvas.width*.25; //starting point
+    this.rad=10; //radius (px)
+    
+    this.speed=1;
+
+    this.dx=this.speed;
+    this.dy=this.speed;
+
+    this.show=function() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.rad,0, Math.PI*2,false);
+        ctx.fillStyle = "rgba(150,51,250,1";
+        ctx.fill();
+        ctx.stroke();
+        ctx.closePath();
+    }
+
+    this.update=function(){
+
+       //hit paddle
+        if(this.y+this.rad+this.speed>=paddle.y){
+            //hits left corner
+            if(this.x<paddle.x && this.x+this.rad>=paddle.x){
+                this.dy=-this.speed;
+                this.dx=-this.speed;
+            } else if
+            //hits right corner
+            (this.x>paddle.x+paddle.width && this.x-this.rad<=paddle.x+paddle.width){
+                this.dx=this.speed;
+                this.dy=-this.speed;
+            }else if
+            //hits middle
+            (this.x>paddle.x && this.x<paddle.x+paddle.width){
+                this.dy=-this.speed;
+            }
+        }
+
+        //hit ceiling
+        if(this.y+this.dy<this.rad){
+            this.dy=-this.dy;
+        }
+        //Change x direction IF:
+        //(hit walls)
+        if (this.x+this.dx>canvas.width-this.rad || this.x+this.dx <= this.rad){
+            this.dx=-this.dx;
+        }
+        //if dead
+        if (this.y+this.rad+this.speed>=canvas.height){
+            clearInterval(playing)
+            document.getElementById("BeginStatement").innerHTML="GAME OVER<Br>Refresh page to play again."
+            // alert("You have lost the game, but you're still a winner to me. Refresh page to play again.")
+        }else{
+            this.x+=this.dx;
+            this.y+=this.dy;
+        }
+    }
+}
+
+function Paddle(){
+    this.x=canvas.width*.4;
+    this.y=canvas.height*.95 
+
+    this.dx=10; //paddle speed
+
+    this.width=100
+    this.height=10
+
+    this.show=function(){
+        ctx.beginPath();
+        ctx.rect(this.x,this.y,this.width,this.height);
+        ctx.fillStyle="white";
+        ctx.fill();
+        ctx.closePath();
+    }
+}
+
+function Brick(x,y,width,height){
+    
+    this.x=x;
+    this.y=y;
+    this.width=width;
+    this.height=height;
+    this.hit=false;
+
+
+    this.update=function(){
+
+        //If hits top or bottom
+        if(ball.x+ball.rad>=this.x && ball.x-ball.rad<=this.x+this.width){
+            //if hit bottom
+            if (this.y+this.height>=ball.y-ball.rad && this.y+this.height<=ball.y+ball.rad){
+                ball.dy=ball.speed
+                this.hit=true
+            }else if
+            //if hit top
+            (this.y<=ball.y+ball.rad && this.y>=ball.y-ball.rad){
+                ball.dy=-ball.speed;
+                this.hit=true;
+            }
+        }
+        //If hits the sides
+        if(ball.y-ball.rad<=this.y+this.height && ball.y+ball.rad>=this.y){
+            //if hit left
+            if(this.x<=ball.x+ball.rad && this.x>=ball.x-ball.rad){
+                ball.dx=-ball.speed;
+                this.hit=true
+            }
+            //if hit right
+            if(this.x+this.width>=ball.x-ball.rad && this.x+this.width<=ball.x+ball.rad){
+                ball.dx=ball.speed
+                this.hit=true
+            }
+        }
+    }
+
+    this.show=function(){
+        ctx.beginPath();
+        ctx.rect(this.x,this.y,this.width,this.height);
+        ctx.fillStyle="white";
+        ctx.fill();
+        ctx.closePath();
+    }
+}
+
+function makeBricks(columns,rows){
+    bricks=[]
+
+    var brick_width=30;
+    var brick_height=20;
+    var brick_padding =1;
+
+    bricky=25; //starting y
+
+    for (i=0;i<=rows;i++){ //for each row
+        bricks[i]=[] //make row
+        brickx=30;
+
+        for (j=0;j<columns;j++){ // for each column
+            bricks[i][j]= new Brick(brickx,bricky,brick_width,brick_height)
+            brickx+=(brick_padding+brick_width);
+        }
+       
+        bricky+=(brick_padding+brick_height); //go down one row
+    }
+}
+
+function drawBricks(list){
+    for (i=0;i<list.length;i++){ //for each row
+        for (j=0;j<list[i].length;j++){ // for each column
+            if (list[i][j].length==undefined){ //if it's not an array (cheap shit way of checking, I know)
+                list[i][j].update()
+                if(list[i][j].hit==true){
+                    list[i][j]=[];
+                    score+=1;
+                    brickcount-=1;
+                }else{
+                    list[i][j].show();
+                }
+            }
+        }
+    }
+}
+
+document.addEventListener("keydown",function keyHandler(event){
+    if (event.key == "ArrowLeft" && paddle.x-paddle.dx>0){
+           paddle.x-=paddle.dx;
+    } 
+
+    if (event.key == "ArrowRight" && paddle.x+paddle.dx+paddle.width<canvas.width){
+        paddle.x+=paddle.dx;
+    } 
+})
+
+document.addEventListener("keypress",function spaceHandler(event){
+    if(event.key==" "){
+        document.getElementById("BeginStatement").innerHTML=""
+        playing=setInterval(draw,10)
+    }
+    
+})
+
+function newGame(){
+
+    //Stop the interval
+    clearInterval(playing)
+    drawBricks(bricks); //show that you won though
+    //display message
+    document.getElementById("BeginStatement").innerHTML="LEVEL COMPLETE!<Br>Press spacebar to advance to next level."
+    //update all info
+    level+=1;
+    brickcount=14*5;
+    ball.speed=ball.speed*1.2
+    paddle.dx=paddle.dx*1.2
+    makeBricks(14,4)
+
+    ball.y=canvas.height*.5; //Starting point
+    ball.x=canvas.width*.25; //starting point
+    ball.dx=ball.speed;
+    ball.dy=ball.speed;
+
+    paddle.x=canvas.width*.4;
+}
+//Begin Playing
+setUp();
+draw()
