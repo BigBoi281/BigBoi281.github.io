@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Whack-a-mole</title>
+
+  <style type="text/css">
+    #field {
+      float: left;
+      width: 500px;
+      height: 500px;
+      position: relative;
+      background: #ccc;
+    }
+
+    #scores {
+      float: left;
+      margin-left: 20px;
+      width: 300px;
+    }
+
+    .mole {
+      width: 50px;
+      height: 50px;
+      position: absolute;
+      top: 0px;
+      left: 0px;
+      background: #333;
+    }
+
+    #mole1 {
+      background: #0f0;
+    }
+
+    .captured {
+      background: #00f;
+    }
+  </style>
+</head>
+<body>
+  <div id="left">
+    <section id="field">
+      <div id="mole1" class="mole"></div>
+      <div id="mole2" class="mole"></div>
+      <div id="mole3" class="mole"></div>
+      <div id="mole4" class="mole"></div>
+      <div id="mole5" class="mole"></div>
+    </section>
+    <button type="button" id="start">Start Game</button>
+  </div>
+
+  <ul id="scores"></ul>
+
+  <script type="text/javascript">
+    var start = document.querySelector('#start');
+    var scores = document.querySelector('#scores');
+
+    var max_x = 450;
+    var max_y = 450;
+
+    var mole1 = document.querySelector('#mole1');
+    var mole1_captured = false;
+
+    var mole2 = document.querySelector('#mole2');
+    var mole2_captured = false;
+
+    var mole3 = document.querySelector('#mole3');
+    var mole3_captured = false;
+
+    var mole4 = document.querySelector('#mole4');
+    var mole4_captured = false;
+
+    var mole5 = document.querySelector('#mole5');
+    var mole5_captured = false;
+
+    var start_time;
+    var end_time;
+
+    var jump1 = function() {
+      var random_x, random_y, new_x, new_y;
+
+      if (mole1_captured === false) {
+        random_x = Math.random() * max_x;
+        random_y = Math.random() * max_y;
+
+        new_x = Math.floor(random_x + 1);
+        new_y = Math.floor(random_y + 1);
+
+        mole1.setAttribute("style", "top: " + new_y + "px; left: " + new_x + "px");
+
+        setTimeout(function() {
+          jump1();
+        }, 1000);
+      }
+    };
+
+    var jump2 = function() {
+      var random_x, random_y, new_x, new_y;
+
+      if (mole2_captured === false) {
+        random_x = Math.random() * max_x;
+        random_y = Math.random() * max_y;
+
+        new_x = Math.floor(random_x + 1);
+        new_y = Math.floor(random_y + 1);
+
+        mole2.setAttribute("style", "top: " + new_y + "px; left: " + new_x + "px");
+
+        setTimeout(function() {
+          jump2();
+        }, 1000);
+      }
+    };
+
+    var jump3 = function() {
+      var random_x, random_y, new_x, new_y;
+
+      if (mole3_captured === false) {
+        random_x = Math.random() * max_x;
+        random_y = Math.random() * max_y;
+
+        new_x = Math.floor(random_x + 1);
+        new_y = Math.floor(random_y + 1);
+
+        mole3.setAttribute("style", "top: " + new_y + "px; left: " + new_x + "px");
+
+        setTimeout(function() {
+          jump3();
+        }, 1000);
+      }
+    };
+
+    var jump4 = function() {
+      var random_x, random_y, new_x, new_y;
+
+      if (mole4_captured === false) {
+        random_x = Math.random() * max_x;
+        random_y = Math.random() * max_y;
+
+        new_x = Math.floor(random_x + 1);
+        new_y = Math.floor(random_y + 1);
+
+        mole4.setAttribute("style", "top: " + new_y + "px; left: " + new_x + "px");
+
+        setTimeout(function() {
+          jump4();
+        }, 1000);
+      }
+    };
+
+    var jump5 = function() {
+      var random_x, random_y, new_x, new_y;
+
+      if (mole5_captured === false) {
+        random_x = Math.random() * max_x;
+        random_y = Math.random() * max_y;
+
+        new_x = Math.floor(random_x + 1);
+        new_y = Math.floor(random_y + 1);
+
+        mole5.setAttribute("style", "top: " + new_y + "px; left: " + new_x + "px");
+
+        setTimeout(function() {
+          jump5();
+        }, 1000);
+      }
+    };
+
+    var check_complete = function() {
+      if (mole1_captured && mole2_captured && mole3_captured && mole4_captured && mole5_captured) {
+        end_time = new Date();
+
+        var total_time = (end_time.getTime() - start_time.getTime())/1000;
+
+        var li = document.createElement('li');
+        li.appendChild(document.createTextNode(total_time));
+
+        scores.insertBefore(li, scores.firstChild);
+
+        // make sure start button is enabled
+        start.removeAttribute('disabled');
+      }
+    };
+
+    var start_game = function() {
+      // disable start button
+      start.setAttribute('disabled', 'disabled');
+
+      start_time = new Date();
+
+      // reset all moles to uncaptured state
+      mole1.setAttribute('class', 'mole');
+      mole1_captured = false;
+      mole2.setAttribute('class', 'mole');
+      mole2_captured = false;
+      mole3.setAttribute('class', 'mole');
+      mole3_captured = false;
+      mole4.setAttribute('class', 'mole');
+      mole4_captured = false;
+      mole5.setAttribute('class', 'mole');
+      mole5_captured = false;
+
+      jump1();
+      jump2();
+      jump3();
+      jump4();
+      jump5();
+    };
+
+    mole1.addEventListener('click', function() {
+      mole1_captured = true;
+      mole1.setAttribute('class', 'mole captured');
+      check_complete();
+    });
+
+    mole2.addEventListener('click', function() {
+      mole2_captured = true;
+      mole2.setAttribute('class', 'mole captured');
+      check_complete();
+    });
+
+    mole3.addEventListener('click', function() {
+      mole3_captured = true;
+      mole3.setAttribute('class', 'mole captured');
+      check_complete();
+    });
+
+    mole4.addEventListener('click', function() {
+      mole4_captured = true;
+      mole4.setAttribute('class', 'mole captured');
+      check_complete();
+    });
+
+    mole5.addEventListener('click', function() {
+      mole5_captured = true;
+      mole5.setAttribute('class', 'mole captured');
+      check_complete();
+    });
+
+    start.addEventListener('click', function() {
+      start_game();
+    });
+  </script>
+</body>
+</html>
