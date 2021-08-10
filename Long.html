@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <style>
+        html,
+        body, canvas {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: Arial;
+        }
+        .fps-meter {
+            position: fixed;
+            top: 0;
+            left: 0;
+            font-size: 20px;
+        }
+    </style>
+    <title>Game</title>
+</head>
+
+<body>
+    <span class="fps-meter"></span>
+    <canvas></canvas>
+    <script>
+        /**
+ * @author Albert Koczy <alufers@wp.pl>
+ */
+var canvas = document.querySelector('canvas');
+var c = canvas.getContext('2d');
+var NUM_VARIATIONS = 12;
+
+var lightMapContext = document.createElement('canvas').getContext('2d');
+
+var tileImageData = {
+    water: [],
+    sand: [],
+    dirt: [],
+    grass: [],
+    concrete: [],
+    wood: [],
+    concreteBorderd: []
+};
+
+var TILE_SIZE = 64;
+
+var PathFinderWorker = {
+    jobs: [],
+    doTick: function () {
+        this.jobs.sort(function (a, b) {
+            return a.priority - b.priority;
+        }).forEach(function (job) {
+
+            var pd = job.data;
+            while (pd.openList.length > 0) {
+                var current = null;
+                pd.openList.forEach(function (sq) {
+                    if (current == null || pd.f[sq.x][sq.y] < pd.f[current.x][current.y]) {
+                        current = sq;
+                    }
+                });
+
+                pd.openList.splice(pd.openList.indexOf(current), 1);
+                pd.closedList.push(current);
+
+                //path.push(new Vector2(current.x * TILE_SIZE, current.y * TILE_SIZE));
+                if (current.x == tX && current.y == tY) {
+
+                    var path = [];
+
+
+
+                    while (pd.parent[current.x][current.y]) {
+
+                        path.push(new Vector2(current.x, current.y).scale(TILE_SIZE).add(TILE_SIZE / 2, TILE_SIZE / 2));
+                        current = pd.parent[current.x][current.y];
+                    }
+
+                    this.path = path;
+                    return;
+                }
+                for (var x = current.x - 1; x <= current.x + 1; x++) {
+                    for (var y = current.y - 1; y <= current.y + 1; y++) {
+                        if (!(x == current.x && y == current.y) && this.level.isWalkable(x, y) && !pd.closedList.some(function (sq) { return sq.x == x && sq.y == y; }) && (x == current.x || y == current.y)) {
+                            if (pd.openList.some(function (sq) { return sq.x == x && sq.y == y; })) {
+                                if (x == current.x || y == current.y) {
+                                    var tmpg = pd.g[current.x][current.y] + 10;
+                                } else {
+                                    var tmpg = pd.g[current.x][current.y] + 14;
+                                }
+                                if (tmpg < pd.g[x][y]) {
+                                    pd.g[x][y] = tmpg;
+                                    pd.f[x][y] = pd.g[x][y] + pd.h[x][y];
+                                    pd.parent[x][y] = current;
+                                }
+                            } else {
+                                pd.openList.push({ x: x, y: y });
+                                pd.h[x][y] = Math.abs(x - tX) + Math.abs(y - tY);
+                                if (x == current.x || y == current.y) {
+                                    pd.g[x][y] = pd.g[current.x][current.y] + 10;
+                                } else {
+                                    pd.g[x][y] = pd.g[current.x][current.y] + 14;
+                                }
+                                pd.f[x][y] = pd.g[x][y] + pd.h[x][y];
+                                pd.parent[x][y] = current;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    },
+    addToQueue: function (startingPosition, destination, width, height, tileLookupFunction, priority, callback) {
+        var job = {
+            startingPosition: startingPosition.copy(), //copy positions, so that they won't change during calculations
+            destination: destination.copy(),
+            width: width,
+            height: height,
+            tileLookupFunction: tileLookupFunction,
+            callback: callback
+
+        };
+
+
+        //do some preparations for the pathfinder
+
+        var tX = Math.floor(job.destination.x / TILE_SIZE), tY = Math.floor(job.destination.y / TILE_SIZE); //target tile
+        var sX = Math.floor(job.startingPosition.x / TILE_SIZE), sY = Math.floor(job.startingPosition.y / TILE_SIZE);
+
+        job.data = { f: [], g: [], h: [], parent: [] };
+        var pd = job.data;
+        for (var x = 0; x < job.width; x++) {
+            pd.f[x] = [];
+            pd.g[x] = [];
+            pd.h[x] = [];
+            pd.parent[x] = [];
+            for (var y = 0; y < job.height; y++) {
+                pd.f[x][y] = 0;
+                pd.g[x][y] = 0;
+                pd.h[x][y] = 0;
+                pd.parent[x][y] = null;
+            }
+        }
+
+
+        pd.openList = [{ x: sX, y: sY }];
+        pd.closedList = [];
+        jobs.push(job);
+    }
+};
+
+
+function Vector2(x, y) {
+    this.x = x || 0;
+    this.y = y || 0;
+}
+Vector2.prototype.scale = function (x, y) {
+    if (typeof y == "undefined") { //scaling by a scalar or another vector
+        if (x instanceof Vector2) {
+            this.x *= x.x;
+            this.y *= x.y;
+            return this;
+        }
+        this.x *= x;
+        this.y *= x;
+        return this;
+    }
+    this.x *= x;
+    this.y *= y;
+    return this;
+}
+Vector2.prototype.add = function (x, y) {
+    if (typeof y == "undefined" && x instanceof Vector2) { //another vector
+        this.x += x.x;
+        this.y += x.y;
+        return this;
+
+    }
+    this.x += x;
+    this.y += y;
+    return this;
+}
+
+Vector2.prototype.substract = function (x, y) {
+    if (typeof y == "undefined" && x instanceof Vector2) { //another vector
+        this.x -= x.x;
+        this.y -= x.y;
+        return this;
+
+    }
+    this.x -= x;
+    this.y -= y;
+    return this;
+}
+Vector2.prototype.reverse = function () {
+    return this.scale(-1);
+}
+Vector2.prototype.getLength = function () {
+    return Math.sqrt(this.x * this.x + this.y * this.y);
+}
+Vector2.prototype.normalize = function () {
+    this.x /= Math.sqrt(this.x * this.x + this.y * this.y);
+    this.y /= Math.sqrt(this.x * this.x + this.y * this.y);
+    return this;
+}
+Vector2.prototype.copy = function () {
+    return new Vector2(this.x, this.y);
+}
+
+Vector2.prototype.dist = function (other) {
+    return dist(this.x, this.y, other.x, other.y);
+}
+
+
+
+//entities
+function PlayerEntity(pos, level) {
+    this.level = level;
+    this.pos = pos || new Vector2(0, 0);
+    this.speedTowardsTarget = 150;
+    this.updatePipeline = [];
+    this.directTarget = null;
+    this.path = [];
+
+    this.AIFaction = 'player';
+
+    DirectTargetFollower(this);
+    PathFollower(this);
+    PathFinder(this);
+}
+
+PlayerEntity.prototype.draw = function () {
+    c.fillStyle = 'blue';
+    c.beginPath();
+    c.arc(this.pos.x, this.pos.y, 32, 0, 2 * Math.PI, false);
+    c.fill();
+    if (this.path.length != 0) {
+        c.beginPath();
+        this.path.forEach(function (p) {
+            c.lineTo(p.x, p.y);
+        });
+        c.lineTo(this.pos.x, this.pos.y);
+        c.stroke();
+    }
+}
+
+function BasicEnemyRobot(pos, level) {
+    this.level = level;
+    this.pos = pos || new Vector2(0, 0);
+    this.speedTowardsTarget = getRandomInt(130, 170); //randomize the speed a little bit
+    this.updatePipeline = [];
+    this.directTarget = null;
+    this.path = [];
+
+    this.AIFaction = 'enemy';
+
+    DirectTargetFollower(this);
+    PathFollower(this);
+    PathFinder(this);
+    // this.goTo(level.player.pos);
+    this.updatePipeline.push(function (delta) {
+        if (!this.path || this.path.length <= 0) {
+            this.goTo(level.findEntitySpawnSpot(false));
+        }
+    });
+}
+
+BasicEnemyRobot.prototype.draw = function () {
+    c.fillStyle = 'red';
+    c.beginPath();
+    c.arc(this.pos.x, this.pos.y, 32, 0, 2 * Math.PI, false);
+    c.fill();
+   /* if (this.path.length != 0) {
+        c.beginPath();
+        this.path.forEach(function (p) {
+            c.lineTo(p.x, p.y);
+        });
+        c.lineTo(this.pos.x, this.pos.y);
+        c.stroke();
+    }*/
+}
+
+
+
+
+
+//entity traits
+
+function DirectTargetFollower(ent) {
+    ent.updatePipeline.push(function (delta) {
+        if (this.directTarget && this.directTarget instanceof Vector2) {
+
+            if (this.pos.dist(this.directTarget) <= TILE_SIZE / 5) {
+                this.directTarget = null;
+            } else {
+                var xDist = this.directTarget.x - this.pos.x + 1;
+                var yDist = this.directTarget.y - this.pos.y + 1;
+
+                var dir = this.directTarget.copy().substract(this.pos).normalize();
+                this.pos.x += Math.floor(dir.x * this.speedTowardsTarget * delta);
+                this.pos.y += Math.floor(dir.y * this.speedTowardsTarget * delta);
+                /* c.beginPath();
+                 c.arc(this.directTarget.x, this.directTarget.y, 16, 0, 2 * Math.PI, false);
+                 c.fill();*/
+            }
+
+        }
+    }.bind(ent));
+
+}
+
+
+
+function PathFollower(ent) {
+
+    ent.updatePipeline.push(function (delta) {
+        if (this.path && this.path.length > 0) {
+
+            if (this.directTarget == null) {
+
+                this.directTarget = this.path.pop();
+            }
+        }
+    }.bind(ent));
+
+}
+
+function PathFinder(ent) {
+    ent.goTo = function (point) {
+
+        var tX = Math.floor(point.x / TILE_SIZE), tY = Math.floor(point.y / TILE_SIZE); //target tile
+        var sX = Math.floor(this.pos.x / TILE_SIZE), sY = Math.floor(this.pos.y / TILE_SIZE);
+        console.log("Going to: ", tX, tY);
+        this.pathFinderData = { f: [], g: [], h: [], parent: [] };
+        var pd = this.pathFinderData;
+        for (var x = 0; x < this.level.width; x++) {
+            pd.f[x] = [];
+            pd.g[x] = [];
+            pd.h[x] = [];
+            pd.parent[x] = [];
+            for (var y = 0; y < this.level.height; y++) {
+                pd.f[x][y] = 0;
+                pd.g[x][y] = 0;
+                pd.h[x][y] = 0;
+                pd.parent[x][y] = null;
+            }
+        }
+
+
+        pd.openList = [{ x: sX, y: sY }];
+        pd.closedList = [];
+
+        while (this.pathFinderData.openList.length > 0) {
+            var current = null;
+            pd.openList.forEach(function (sq) {
+                if (current == null || pd.f[sq.x][sq.y] < pd.f[current.x][current.y]) {
+                    current = sq;
+                }
+            });
+
+            pd.openList.splice(pd.openList.indexOf(current), 1);
+            pd.closedList.push(current);
+
+            //path.push(new Vector2(current.x * TILE_SIZE, current.y * TILE_SIZE));
+            if (current.x == tX && current.y == tY) {
+
+                var path = [];
+
+
+
+                while (pd.parent[current.x][current.y]) {
+
+                    path.push(new Vector2(current.x, current.y).scale(TILE_SIZE).add(TILE_SIZE / 2, TILE_SIZE / 2));
+                    current = pd.parent[current.x][current.y];
+                }
+
+                this.path = path;
+                return;
+            }
+            for (var x = current.x - 1; x <= current.x + 1; x++) {
+                for (var y = current.y - 1; y <= current.y + 1; y++) {
+                    if (!(x == current.x && y == current.y) && this.level.isWalkable(x, y) && !pd.closedList.some(function (sq) { return sq.x == x && sq.y == y; }) && (x == current.x || y == current.y)) {
+                        if (pd.openList.some(function (sq) { return sq.x == x && sq.y == y; })) {
+                            if (x == current.x || y == current.y) {
+                                var tmpg = pd.g[current.x][current.y] + 10;
+                            } else {
+                                var tmpg = pd.g[current.x][current.y] + 14;
+                            }
+                            if (tmpg < pd.g[x][y]) {
+                                pd.g[x][y] = tmpg;
+                                pd.f[x][y] = pd.g[x][y] + pd.h[x][y];
+                                pd.parent[x][y] = current;
+                            }
+                        } else {
+                            pd.openList.push({ x: x, y: y });
+                            pd.h[x][y] = Math.abs(x - tX) + Math.abs(y - tY);
+                            if (x == current.x || y == current.y) {
+                                pd.g[x][y] = pd.g[current.x][current.y] + 10;
+                            } else {
+                                pd.g[x][y] = pd.g[current.x][current.y] + 14;
+                            }
+                            pd.f[x][y] = pd.g[x][y] + pd.h[x][y];
+                            pd.parent[x][y] = current;
+                        }
+                    }
+                }
+            }
+        }
+
+
+    }.bind(ent);
+    ent.updatePipeline.push(function (delta) {
+
+    }.bind(ent));
+
+
+
+}
+//tiles
+
+function WaterTile() {
+    this.walkable = false;
+    this.imageData = randomInArray(tileImageData.water);
+}
+function SandTile() {
+    this.walkable = true;
+    this.imageData = randomInArray(tileImageData.sand);
+}
+function DirtTile() {
+    this.walkable = true;
+    this.imageData = randomInArray(tileImageData.dirt);
+}
+function GrassTile() {
+    this.walkable = true;
+    this.imageData = randomInArray(tileImageData.grass);
+}
+function WoodTile() {
+    this.walkable = true;
+    this.imageData = randomInArray(tileImageData.grass);
+}
+function ConcreteTile() {
+    this.walkable = true;
+    this.collides = true;
+    this.occludes = true;
+    this.imageData = randomInArray(tileImageData.concrete);
+}
+function ConcreteBorderdTile() {
+    this.walkable = true;
+    this.collides = true;
+    this.occludes = true;
+    this.imageData = randomInArray(tileImageData.concreteBorderd);
+    this.isInterior = true;
+}
+function Level() {
+    this.surfaceTiles = null;
+    this.wallTiles = null;
+    this.width = 72;
+    this.height = 72;
+    this.type = 'island';
+    this.entities = [];
+}
+
+Level.prototype.populateTiles = function () {
+    this.surfaceTiles = [];
+    this.wallTiles = [];
+    var heightMap = $2DArray(this.width, this.height, 0);
+    for (var x = 0; x < this.width; x++) {
+        for (var y = 0; y < this.height; y++) {
+            if (this.type === 'island') {
+                heightMap[x][y] = dist(x, y, this.width / 2, this.height / 2) + (((Math.random() * 2) - 1) * (dist(x, y, this.width / 2, this.height / 2)) / 27);
+            }
+
+        }
+    }
+
+    //add some random circles to the heightmap
+    for (var i = 0; i < 20; i++) {
+        var raise = (((Math.random() * 2) - 1) * 40);
+        var x = getRandomInt(0, this.width);
+        var y = getRandomInt(0, this.height);
+        var size = 4;
+        for (var a = -size; a < size; a++) {
+            for (var b = -size; b < size; b++) {
+                if (x + a > this.width - 1 || y + b > this.height || x + a < 0 || y + b < 0) continue;
+                heightMap[x + a][y + b] += raise * ((size - Math.abs(a)) / size) * ((size - Math.abs(b)) / size);
+            }
+        }
+    }
+
+    for (var x = 0; x < this.width; x++) {
+        this.surfaceTiles[x] = [];
+        this.wallTiles[x] = [];
+
+
+
+        for (var y = 0; y < this.height; y++) {
+            if (this.type === 'island') {
+
+                if (heightMap[x][y] > this.width / 2.4) {
+                    this.surfaceTiles[x][y] = new WaterTile();
+                } else if (heightMap[x][y] > this.width / 3) {
+                    this.surfaceTiles[x][y] = new SandTile();
+                } else {
+                    Math.random() > 0.01 ? this.surfaceTiles[x][y] = new GrassTile() : this.surfaceTiles[x][y] = new DirtTile();
+                }
+
+                this.wallTiles[x][y] = null;
+            }
+
+        }
+    }
+
+    //generate some structures
+
+
+
+    var maxBuildings = 3;
+    var maxFails = 3000;
+    var fails = 0;
+    var buildingPositions = [];
+    var minSize = 3;
+    var x, y, width, height;
+    masterloop:
+    while (true) {
+        if (buildingPositions.length > maxBuildings) {
+            console.log("Too many buildings!");
+            break;
+        }
+        if (fails > maxFails) {
+            console.log("Breaking because of fails");
+            break;
+        }
+
+
+        x = getRandomInt(0, this.width - 1 - minSize);
+        y = getRandomInt(0, this.height - 1 - minSize);
+
+        width = getRandomInt(minSize, this.width - x - 1);
+        height = getRandomInt(minSize, this.height - y - 1);
+
+
+        for (var a = x; a < x + width; a++) {
+            for (var b = y; b < y + height; b++) {
+                if (this.surfaceTiles[a][b] instanceof WaterTile) {
+                    fails++;
+
+                    continue masterloop;
+                }
+            }
+
+        }
+
+        if (buildingPositions.some(function (bpos) {
+            return !(x > bpos.x + bpos.width ||
+                x + width < bpos.x ||
+                y > bpos.y + bpos.height ||
+                y + height < bpos.y);
+        })) { //if a building itersects
+            fails++;
+
+            continue masterloop;
+        }
+
+        console.log("Building found!", x, y, width, height);
+        buildingPositions.push({ x: x, y: y, width: width, height: height, wallType: ConcreteTile, floorType: ConcreteBorderdTile });
+        fails = 0;
+
+
+
+
+    }
+    console.log("Now starting to build buildings");
+    buildingPositions.forEach(function (p) { this.createBuilding(p); }.bind(this));
+    this.player = new PlayerEntity(this.findEntitySpawnSpot(false), this);
+    this.entities.push(this.player);
+
+    //put some enemeies
+
+    for (var i = 0; i < maxBuildings * 2; i++) {
+        var e = new BasicEnemyRobot(this.findEntitySpawnSpot(true), this);
+        this.entities.push(e);
+    }
+
+
+
+}
+Level.prototype.findEntitySpawnSpot = function (interior) {
+    var fails = 0;
+    while (true) {
+        if (fails > 1000) return new Vector2(0, 0);
+        var pos = new Vector2(getRandomInt(0, this.width * TILE_SIZE), getRandomInt(0, this.height * TILE_SIZE));
+        fails++;
+        if (!this.isWalkable(Math.floor(pos.x / TILE_SIZE), Math.floor(pos.y / TILE_SIZE))) continue;
+        if (interior) {
+            if (this.surfaceTiles[Math.floor(pos.x / TILE_SIZE)][Math.floor(pos.y / TILE_SIZE)].isInterior) {
+                return pos;
+            }
+        } else {
+            if (!this.surfaceTiles[Math.floor(pos.x / TILE_SIZE)][Math.floor(pos.y / TILE_SIZE)].isInterior) {
+                return pos;
+            }
+        }
+    }
+}
+Level.prototype.isWalkable = function (x, y) {
+    return x >= 0 && y >= 0 && x < this.width && y < this.height && this.surfaceTiles[x][y].walkable && !(this.wallTiles[x][y] != null && this.wallTiles[x][y].collides);
+}
+Level.prototype.createBuilding = function (opt) {
+
+    var doorChance = 0.99; //higher chance of doors for the first time
+
+
+    for (var x = opt.x; x <= opt.x + opt.width; x++) {
+
+        this.wallTiles[x][opt.y] = Math.random() < doorChance ? null : new opt.wallType();
+        doorChance = 0.06;
+        this.wallTiles[x][opt.y + opt.height] = Math.random() < doorChance ? null : new opt.wallType();
+
+    }
+
+    for (var y = opt.y; y < opt.y + opt.height; y++) {
+        this.wallTiles[opt.x][y] = Math.random() < opt.doorChance ? null : new opt.wallType();
+        this.wallTiles[opt.x + opt.width][y] = Math.random() < doorChance ? null : new opt.wallType();
+
+    }
+
+    for (var x = opt.x; x <= opt.x + opt.width; x++) {
+        for (var y = opt.y; y < opt.y + opt.height; y++) {
+            this.surfaceTiles[x][y] = new opt.floorType();
+
+        }
+    }
+    //console.log(Math.ceil(opt.w * opt.h / 100));
+    var minDistanceToBorder = 4;
+    for (var i = 0; i < Math.ceil(opt.width * opt.height / 88); i++) { //create some internal walls
+
+        var dir = randomInArray(['D', 'U', 'L', 'R']); //direction we will be building the wall 
+
+        if (dir == 'D' || dir == 'U') {
+
+            var length = getRandomInt(1, opt.height - minDistanceToBorder);
+            var x = getRandomInt(opt.x + minDistanceToBorder, + opt.x + opt.width - minDistanceToBorder);
+
+            if (dir == 'D') {
+
+                for (var y = opt.y + 1; y < opt.y + 1 + length; y++) {
+                    this.wallTiles[x][y] = Math.random() < doorChance ? null : new opt.wallType();
+                }
+            } else {
+
+                for (var y = opt.y + opt.height - 1; y > opt.y + opt.height - 1 - length && y < this.height; y--) {
+                    this.wallTiles[x][y] = Math.random() < doorChance ? null : new opt.wallType();
+                }
+            }
+
+
+        } else {
+            var length = getRandomInt(1, opt.width - minDistanceToBorder);
+            var y = getRandomInt(opt.y + minDistanceToBorder, + opt.y + opt.height - minDistanceToBorder);
+            if (dir == 'R') {
+                for (var x = opt.x + 1; x < opt.x + length; x++) {
+                    this.wallTiles[x][y] = Math.random() < doorChance ? null : new opt.wallType();
+                }
+            } else {
+
+                for (var x = opt.x + opt.width - 1; x > opt.x + opt.width - length; x--) {
+                    this.wallTiles[x][y] = Math.random() < doorChance ? null : new opt.wallType();
+                }
+            }
+        }
+    }
+
+
+
+}
+
+Level.prototype.renderShadows = function (ctx) { //custom context so we can make lightmaps etc...
+
+
+    //ctx.fillStyle = "rgba(0, 0, 0, 0.2)";
+    var depth = 10;
+
+    ctx.beginPath();
+
+    for (var x = 0; x < this.width; x++) {
+        for (var y = 0; y < this.height; y++) {
+            if (this.wallTiles[x][y] != null && this.wallTiles[x][y].occludes) {
+
+                ctx.moveTo(x * TILE_SIZE, y * TILE_SIZE);
+                ctx.lineTo(x * TILE_SIZE + TILE_SIZE, y * TILE_SIZE);
+                ctx.lineTo(x * TILE_SIZE + TILE_SIZE, y * TILE_SIZE + TILE_SIZE);
+                ctx.lineTo(x * TILE_SIZE, y * TILE_SIZE + TILE_SIZE);
+                ctx.lineTo(x * TILE_SIZE, y * TILE_SIZE);
+
+                //ctx.drawImage(this.wallTiles[x][y].imageData, x * TILE_SIZE - depth, y * TILE_SIZE - depth, TILE_SIZE + 2 * depth, TILE_SIZE + 2 * depth);
+
+
+            }
+        }
+    }
+    ctx.save();
+    ctx.shadowBlur = depth;
+    ctx.shadowColor = "black";
+    ctx.fill();
+    ctx.restore();
+
+
+}
+
+Level.prototype.draw = function () {
+
+    for (var x = 0; x < this.width; x++) {
+        for (var y = 0; y < this.height; y++) {
+            c.drawImage(this.surfaceTiles[x][y].imageData, x * TILE_SIZE, y * TILE_SIZE);
+
+        }
+    }
+
+    lvl.renderShadows(c);
+
+    this.entities.forEach(function (e) {
+        e.draw();
+    });
+
+    for (var x = 0; x < this.width; x++) {
+        for (var y = 0; y < this.height; y++) {
+
+            if (this.wallTiles[x][y] != null) {
+                c.drawImage(this.wallTiles[x][y].imageData, x * TILE_SIZE, y * TILE_SIZE);
+
+            }
+        }
+    }
+
+
+
+}
+
+Level.prototype.update = function (delta) {
+    this.entities.forEach(function (e) {
+        e.updatePipeline.forEach(function (uf) {
+            uf.bind(e)(delta);
+        });
+    });
+}
+
+function $2DArray(w, h, init) {
+    var a = [];
+    for (var x = 0; x < w; x++) {
+        a[x] = [];
+        for (var y = 0; y < h; y++) {
+            a[x][y] == init;
+
+        }
+    }
+
+    return a;
+}
+
+function generateTileImageData() {
+    for (var i = 0; i < NUM_VARIATIONS; i++) {
+        tileImageData.water.push(upscaleImageDataToCanvas(createProceduralImageData({
+            bcolor: { r: 0, g: 120, b: 255 },
+            artifacts: {
+                enable: true,
+                count: [15, 30],
+                colors: [{ r: 0, g: 90, b: 200 }, { r: 0, g: 40, b: 250 }, { r: 0, g: 100, b: 240 }]
+
+            }
+        }), TILE_SIZE, TILE_SIZE));
+        tileImageData.sand.push(upscaleImageDataToCanvas(createProceduralImageData({
+            bcolor: { r: 234, g: 180, b: 64 },
+            artifacts: {
+                enable: true,
+                count: [20, 30],
+                auto: true,
+                randFactor: 0.1
+
+            }
+        }), TILE_SIZE, TILE_SIZE));
+        tileImageData.dirt.push(upscaleImageDataToCanvas(createProceduralImageData({
+            bcolor: { r: 102, g: 51, b: 0 },
+            artifacts: {
+                enable: true,
+                count: [20, 30],
+                auto: true
+
+            }
+        }), TILE_SIZE, TILE_SIZE));
+
+        tileImageData.grass.push(upscaleImageDataToCanvas(createProceduralImageData({
+            bcolor: { r: 70, g: 170 + getRandomInt(1, 10), b: 0 },
+            artifacts: {
+                enable: true,
+                count: [20, 38],
+                auto: true,
+                randFactor: 0.4
+
+            }
+        }), TILE_SIZE, TILE_SIZE));
+
+        tileImageData.concrete.push(upscaleImageDataToCanvas(createProceduralImageData({
+            bcolor: { r: 130, g: 130, b: 130 },
+            artifacts: {
+                enable: true,
+                count: [40, 50],
+                auto: true,
+                randFactor: 0.1,
+                onlyBrightness: true
+
+            }
+        }), TILE_SIZE, TILE_SIZE));
+
+        tileImageData.wood.push(upscaleImageDataToCanvas(createProceduralImageData({
+            bcolor: { r: 150, g: 111, b: 51 },
+            artifacts: {
+                enable: true,
+                count: [20, 38],
+                auto: true,
+                randFactor: 0.4
+
+            }
+        }), TILE_SIZE, TILE_SIZE));
+
+        tileImageData.concreteBorderd.push(upscaleImageDataToCanvas(createProceduralImageData({
+            bcolor: { r: 130, g: 130, b: 130 },
+            border: {
+                enable: true,
+                color: { r: 145, g: 145, b: 145 }
+            },
+            artifacts: {
+                enable: true,
+                count: [40, 90],
+                auto: true,
+                randFactor: 0.1,
+                onlyBrightness: true
+
+            }
+        }), TILE_SIZE, TILE_SIZE));
+
+
+    }
+
+
+
+}
+
+function dist(x, y, ax, ay) {
+    return Math.sqrt(Math.pow(x - ax, 2) + Math.pow(y - ay, 2));
+}
+
+function getRandomInt(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function randomInArray(a) {
+    return a[getRandomInt(0, a.length - 1)];
+}
+
+function upscaleImageDataToCanvas(old, newW, newH) {
+    var imd = c.createImageData(newW, newH), oldW = old.width, oldH = old.height;
+    var d = imd.data;
+    var od = old.data;
+
+    for (var i = 0; i < d.length; i += 4) {
+        var x = (i / 4) % newW, y = Math.floor((i / 4) / newW), oldX = Math.floor(x / (newW / oldW)), oldY = Math.floor(y / (newH / oldH));
+        var posOnOld = (oldX + (oldY * oldW)) * 4;
+        d[i] = od[posOnOld];
+        d[i + 1] = od[posOnOld + 1];
+        d[i + 2] = od[posOnOld + 2];
+        d[i + 3] = od[posOnOld + 3];
+    }
+    var newcan = document.createElement("canvas");
+
+    newcan.width = newW;
+    newcan.height = newH;
+    newcan.getContext('2d').putImageData(imd, 0, 0);
+    return newcan;
+
+}
+
+function createProceduralImageData(opt) {
+    var w = opt.w || 16, h = opt.h || 16, imd = c.createImageData(w, h), d = imd.data;
+
+    for (var i = 0; i < d.length; i += 4) {
+        d[i] = opt.bcolor.r;
+        d[i + 1] = opt.bcolor.g;
+        d[i + 2] = opt.bcolor.b;
+        d[i + 3] = opt.bcolor.a || 255;
+    }
+    if (opt.artifacts.auto) {
+        opt.artifacts.colors = [];
+        for (var i = 0; i < 4; i++) {
+            if (opt.artifacts.onlyBrightness) {
+                var br = (1 + (Math.random() * 2 - 1) * (opt.artifacts.randFactor || 0.2));
+                var color = {
+                    r: opt.bcolor.r * br,
+                    g: opt.bcolor.g * br,
+                    b: opt.bcolor.b * br,
+                    a: opt.bcolor.a
+                };
+            } else {
+                var color = {
+                    r: opt.bcolor.r * (1 + (Math.random() * 2 - 1) * (opt.artifacts.randFactor || 0.2)),
+                    g: opt.bcolor.g * (1 + (Math.random() * 2 - 1) * (opt.artifacts.randFactor || 0.2)),
+                    b: opt.bcolor.b * (1 + (Math.random() * 2 - 1) * (opt.artifacts.randFactor || 0.2)),
+                    a: opt.bcolor.a
+                };
+            }
+
+            opt.artifacts.colors.push(color);
+        }
+    }
+
+
+    if (opt.border && opt.border.enable) {
+        for (var x = 0; x < w; x++) {
+            var pos = (x + (0 * w)) * 4;
+            d[pos] = opt.border.color.r;
+            d[pos + 1] = opt.border.color.g;
+            d[pos + 2] = opt.border.color.b;
+            d[pos + 3] = opt.border.color.a || 255;
+            pos = (x + ((h - 1) * w)) * 4;
+            d[pos] = opt.border.color.r;
+            d[pos + 1] = opt.border.color.g;
+            d[pos + 2] = opt.border.color.b;
+            d[pos + 3] = opt.border.color.a || 255;
+        }
+
+        for (var y = 0; y < h; y++) {
+            pos = (0 + (y * w)) * 4;
+            d[pos] = opt.border.color.r;
+            d[pos + 1] = opt.border.color.g;
+            d[pos + 2] = opt.border.color.b;
+            d[pos + 3] = opt.border.color.a || 255;
+
+            pos = (w - 1 + (y * w)) * 4;
+            d[pos] = opt.border.color.r;
+            d[pos + 1] = opt.border.color.g;
+            d[pos + 2] = opt.border.color.b;
+            d[pos + 3] = opt.border.color.a || 255;
+        }
+    }
+
+
+    if (opt.artifacts && opt.artifacts.enable) {
+        var count = getRandomInt(opt.artifacts.count[0], opt.artifacts.count[1]);
+        for (var i = 0; i < count; i++) {
+            var x = getRandomInt(0, w), y = getRandomInt(0, h);
+            var pos = (x + (y * w)) * 4;
+            d[pos] = randomInArray(opt.artifacts.colors).r;
+            d[pos + 1] = randomInArray(opt.artifacts.colors).g;
+            d[pos + 2] = randomInArray(opt.artifacts.colors).b;
+            d[pos + 3] = randomInArray(opt.artifacts.colors).a || 255;
+        }
+    }
+
+
+    return imd;
+}
+
+
+var lvl = new Level();
+
+var start = new Date().getTime();
+var pendingEvents = [];
+function draw() {
+
+    delta = (new Date().getTime() - start) / 1000;
+    document.querySelector('.fps-meter').innerHTML = (1 / delta).toFixed(0) + ' FPS';
+    start = new Date().getTime();
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+
+
+    c.clearRect(0, 0, canvas.width, canvas.height);
+
+    c.translate(-Math.floor(lvl.player.pos.x - canvas.width / 2), -Math.floor(lvl.player.pos.y - canvas.height / 2));
+
+    pendingEvents.forEach(function (e) {
+        if (e.type == 'click') {
+            // lvl.player.directTarget = new Vector2((lvl.player.pos.x - (canvas.width / 2)) + e.x, (lvl.player.pos.y - (canvas.height / 2)) + e.y);
+            lvl.player.goTo(new Vector2((lvl.player.pos.x - (canvas.width / 2)) + e.x, (lvl.player.pos.y - (canvas.height / 2)) + e.y));
+        }
+    });
+
+    pendingEvents = [];
+
+    lvl.draw();
+    lvl.update(delta);
+
+    c.translate(Math.floor(lvl.player.pos.x - canvas.width / 2), Math.floor(lvl.player.pos.y - canvas.height / 2)); //move the camera to the players position
+
+    requestAnimationFrame(draw);
+}
+var uStart = new Date().getTime();
+function gameLoop() {
+    uDelta = (new Date().getTime() - start) / 1000;
+
+    setTimeout(gameLoop, 0);
+}
+generateTileImageData();
+lvl.populateTiles();
+draw();
+gameLoop();
+
+canvas.addEventListener('click', function (event) {
+    var x = event.pageX - canvas.offsetLeft,
+        y = event.pageY - canvas.offsetTop;
+
+
+    pendingEvents.push({
+        type: 'click',
+        x: x,
+        y: y
+    });
+}, false);
+//})();
+
+    </script>
+</body>
+
+</html>
