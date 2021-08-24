@@ -280,8 +280,8 @@ function loop(time) {
     explosion.size += 0.35 * explosion.dir;
 
     // change the direction of the explosion to wane
-    if (explosion.size > 30) {
-      explosion.dir = -1;
+    if (explosion.size > 5) {
+      explosion.dir = 1;
     }
 
     // remove the explosion
