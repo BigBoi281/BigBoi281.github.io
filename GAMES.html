@@ -1,0 +1,270 @@
+
+<html>
+	<meta name="apple-mobile-web-app-capable"
+      content="yes" />
+	<link rel="apple-touch-icon"
+      href="ios.app.png" />
+<head>
+<title>run cube run</title>
+  <meta name="viewport" content="width=device-width, user-scalable=no" />
+</head>
+<body>
+  <h1>run cube run</h1>
+  <p>Left-Click or tap and hold on the game section to move your player. Try to reach the goal without being caught by the enemies</p>
+ <FORM>
+<input align="top" type="button" value="Enter cheat code" onClick="passWord()">
+</FORM>
+	<canvas id="mycanvas" width="640" height="360" ></canvas>
+<script>
+function passWord() {
+var testV = 1;
+var pass1 = prompt('Please enter a cheat code',' ');
+while (testV < 3) {
+if (!pass1) 
+history.go(-1);
+if (pass1.toLowerCase() == " life+10") {
+alert('ten up!');
+life ++ 10;
+break;
+} 
+testV+=1;
+var pass1 = 
+prompt('invalid cheat code',' ');
+}
+if (pass1.toLowerCase()!="password" & testV ==3) 
+history.go(-1);
+return " ";
+} 
+</script>
+  <style>
+	canvas {
+	  border: 1px solid white;
+	  width: 100%;
+	}
+	
+	* {
+   -webkit-user-select: none; /*disable text selection */
+	}
+  </style>
+  <script>
+	window.addEventListener("load",function() {
+	  
+	
+	  var GAME_WIDTH = 640;
+	  var GAME_HEIGHT = 360;
+
+	 
+	  var gameLive = true;
+
+	  var level = 1;
+	  var life = 100;
+	  var color = "#"+((1<<24)*Math.random()|0).toString(16);
+
+
+	 
+	  var enemies = [
+		{
+		  x: 100, //x coordinate
+		  y: 100, //y coordinate
+		  speedY: 2, //speed in Y
+		  w: 40, //width
+		  h: 40 //heght
+		},
+		{
+		  x: 200,
+		  y: 0,
+		  speedY: 2,
+		  w: 40,
+		  h: 40
+		},
+		{
+		  x: 330,
+		  y: 100,
+		  speedY: 3,
+		  w: 40,
+		  h: 40
+		},
+		{
+		  x: 450,
+		  y: 100,
+		  speedY: -3,
+		  w: 40,
+		  h: 40
+		}
+	  ];
+
+	  
+	  var player = {
+		x: 10,
+		y: 160,
+		speedX: 2,
+		isMoving: false,  //keep track whether the player is moving or not
+		w: 40,
+		h: 40
+	  };
+
+	  var goal = {
+		x: 580,
+		y: 160,
+		w: 50,
+		h: 36
+	  }
+
+	  var sprites = {};
+
+	  var movePlayer = function() {
+		player.isMoving = true;
+	  }
+
+	  var stopPlayer = function() {
+		player.isMoving = false;
+	  }
+	  
+	 
+	  var canvas = document.getElementById("mycanvas");
+	  var ctx = canvas.getContext("2d");
+
+	
+	  canvas.addEventListener('mousedown', movePlayer);
+	  canvas.addEventListener('mouseup', stopPlayer);   
+	  canvas.addEventListener('touchstart', movePlayer);
+	  canvas.addEventListener('touchend', stopPlayer);   
+
+	 
+	  var update = function() {
+
+		
+		if(checkCollision(player, goal)) {
+		  
+		  alert('Win !');
+		  level += 1;
+		  life += 1;
+		  player.speedX += 1;
+		  player.x = 10;
+		  player.y = 160;
+		  player.isMoving = false;
+		  
+		  for(var ab = 0; ab < enemies.length; ab++){
+			  if(enemies[ab].speedY > 1){
+				enemies[ab].speedY += 1 ;
+			  }
+			  else{
+				  enemies[ab].speedY -= 1 ;
+			  }
+		  }
+		}
+
+
+		if(player.isMoving) {
+		  player.x = player.x + player.speedX;
+		}
+
+		
+		var i = 0;
+		var n = enemies.length;
+		
+		enemies.forEach(function(element, index){
+
+		  if(checkCollision(player, element)) {
+		
+			if(life === 0){
+				
+				alert('Game Over');
+				
+				for(var ab = 0; ab < enemies.length; ab++){
+					
+					if(enemies[ab].speedY > 1){
+					enemies[ab].speedY -= (level - 1) ;
+					}
+					
+					else{
+						enemies[ab].speedY += (level - 1) ;
+					}
+				}
+				level = 1;
+				life = 6;
+				player.speedX = 2;
+				color ="#"+((1<<24)*Math.random()|0).toString(16);
+			}
+			
+			if(life > 0){
+				
+				life -= 1 ;
+				color ="#"+((1<<24)*Math.random()|0).toString(16);
+			}
+			
+			player.x = 10; 
+			player.y = 160;
+			player.isMoving = false;
+		  }
+
+		  
+		  element.y += element.speedY;
+		  
+		  
+		  if(element.y <= 10) {
+			element.y = 10;
+			//element.speedY = element.speedY * -1;
+			element.speedY *= -1;
+		  }
+		  else if(element.y >= GAME_HEIGHT - 50) {
+			element.y = GAME_HEIGHT - 50;
+			element.speedY *= -1;
+		  }
+		});
+	  };
+
+	  
+	  var draw = function() {
+		//clear the canvas
+		ctx.clearRect(0,0,GAME_WIDTH,GAME_HEIGHT);		
+
+	
+		ctx.font = "15px Verdana";
+		ctx.fillStyle = "rgb(0,0,0)";
+		ctx.fillText("Level : " + level , 10, 15);
+		ctx.fillText("Life : " + life , 10, 35);
+		ctx.fillText("Speed : " + player.speedX , 10, 55);
+		
+
+		
+		ctx.fillStyle = color;
+		ctx.fillRect(player.x, player.y, player.w, player.h);
+
+		
+		ctx.fillStyle = "rgb(255,120,70)";
+		enemies.forEach(function(element, index){
+		  ctx.fillRect(element.x, element.y, element.w, element.h);
+		});
+
+		ctx.fillStyle = "rgb(0,255,120)";
+		ctx.fillRect(goal.x, goal.y, goal.w, goal.h);
+		ctx.fillStyle = "rgb(0,0,0)";
+		ctx.fillText("Goal", goal.x + 7, goal.y + 25);
+	  };
+
+	  
+	  var step = function() {
+
+		update();
+		draw();
+
+		if(gameLive) {
+		  window.requestAnimationFrame(step); 
+		}	 
+	  };
+
+	  
+	  var checkCollision = function(rect1, rect2) {
+
+		var closeOnWidth = Math.abs(rect1.x - rect2.x) <= Math.max(rect1.w, rect2.w);
+		var closeOnHeight = Math.abs(rect1.y - rect2.y) <= Math.max(rect1.h, rect2.h);
+		return closeOnWidth && closeOnHeight;
+	  }
+
+	  
+	  step();
+	});
+  </script>
+</body>
+</html>
