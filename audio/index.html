@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Podcast selection</title>
+  </head>
+  <body>
+     <style>
+      body {
+        font-size: 60%;
+        background: #00abb7;
+      }
+      .container {
+        padding: 50px;
+      }
+      button,
+      button::after {
+        -webkit-transition: all 0.3s;
+        -moz-transition: all 0.3s;
+        -o-transition: all 0.3s;
+        transition: all 0.3s;
+      }
+      button {
+        background: none;
+        border: 4px solid #fff;
+        border-radius: 10px;
+        color: #fff;
+        display: block;
+        font-size: 1.6em;
+        font-weight: bold;
+        margin: 10px auto;
+        padding: 2em 6em;
+        position: relative;
+        text-transform: uppercase;
+      }
+      button::before,
+      button::after {
+        background: #fff;
+        content: '';
+        position: absolute;
+        z-index: -1;
+      }
+      button:hover {
+        color: #29f2e4;
+      }
+      .button1::after {
+        height: 0;
+        left: 0;
+        top: 0;
+        width: 100%;
+      }
+      .button1:hover:after {
+        height: 100%;
+      }
+      .button2::after {
+        height: 100%;
+        left: 0;
+        top: 0;
+        width: 0;
+      }
+      .button2:hover:after {
+        width: 100%;
+      }
+      .button3::after 
+        height: 0;
+        left: 50%;
+        top: 50%;
+        width: 0;
+      }
+      .button3:hover:after {
+        height: 100%;
+        left: 0;
+        top: 0;
+        width: 100%;
+      }
+    </style>
+    <input type="button" onclick="window.location.href'https://bigboi281.github.io/audio/audio.html';" value="CLICK FOR AUDIO" />
+  </body>
+</html>
